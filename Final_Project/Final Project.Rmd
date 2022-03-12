@@ -1,0 +1,160 @@
+---
+title: "Final Project"
+author: "Serena Zadoorian"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$get("root.dir")
+```
+
+```{r, include=FALSE, echo=TRUE}
+library(tidyverse)
+library (here)
+library(lubridate)
+library(DataExplorer)
+library(data.table)
+library(plyr)
+library(readr)
+library(fs)
+library(ggplot2)
+library(lme4)
+library(lattice)
+```
+
+This project has six raw data files. The experiment has three conditions isolated mouth-only (MO), full-face (AV), and audio-only (AO). During this voice learning experiment participants are first trained to learn to recognize voices (training depends on the assigned modality) and then everyone is tested to recognize audio-only voices (regardless of the assigned condition). 
+
+# File DESCRIPTION
+
+## FILE 1: All files are in .csv format
+
+Columns:
+
+  + key_resp.keys
+  + key_resp.rt
+  + participant
+  + session
+  + date
+  + condition
+  + CorrResp_Train
+  + Part_Resp_Train
+  + Code_Train
+  + CorrResp_Test
+  + Part_Resp_Test
+  + Code_Test
+
+          
+Code_Train and Code_Test is coded as 0 or 1 and indicates if participants identified the talker correctly (1) or incorrectly (0). 
+
+# STEP 1: Read all files into R first. 
+By using the function list.files, I was able to bring all of the individual files to R. Next, read_csv allows one to read all of the individual files into one dataframe. This is an efficient way of reading all of the individual data files. 
+
+Before, I used to combine all of the files one at a time using copy-pasting in excel. Then, I would read the main file in R. 
+
+
+```{r, include=TRUE, cache=TRUE, results='hide', message=FALSE}
+col_names  <-  c("key_resp.keys","key_resp.rt","participant","session", "date", "condition", "CorrResp_Train", "Part_Resp_Train", "Code_Train", "CorrResp_Test", "Part_Resp_Test", "Code_Test")
+setwd("C:\\Users\\Serena\\Desktop\\UCR Courses\\PSYC 259\\Final_Project\\Individual_Files")
+Individual_Files <- list.files()
+AllFiles<-Individual_Files
+df <- read_csv(AllFiles, col_names = col_names, skip =7)
+```
+---
+
+# STEP 2: Delete all unnecessary columns.
+The csv files produced by Pavlovia.org includes some data columns that are not useful when analyzing. I initially used to delete all of those columns one by one for every single subject (which takes forever!). 
+
+By using the following two methods, one can easily remove all of the unnecessary columns using a couple of lines of code. The first code uses the function "subset" and "-c" to remove the specific columns not used. The second one does the same thing. I can apply this same function to all of my experiments ran through Pavlovia.org. 
+
+## An easy way to delete columns.
+```{r, include=TRUE, cache=TRUE, results='hide', message=FALSE}
+df_final<-subset (df, select = -c (key_resp.keys,key_resp.rt, session,date))
+```
+
+
+## Writing functions to remove columns. 
+
+```{r, include=TRUE, cache=TRUE, results='hide', message=FALSE}
+Column_Remove <- function(s1){
+    df<- subset (df, select = -c (key_resp.keys,key_resp.rt, session,date))
+  return(df)
+}
+
+df_final_function <- Column_Remove(df)
+```
+---
+
+# STEP 3: Using for loops to run a series of regression analyses. 
+I usually use regression models for the majority of my analyses. Often, I ran multiple regression models for training and test (other analyses as well). The "for loops" function will allow me to analyze my entire dataset.
+
+
+```{r, include=TRUE, cache=TRUE, results='markup', message=FALSE}
+pred <- c("condition", "Code_Train")
+for (p in pred) {
+  f <- as.formula(paste("Code_Test ~ ", p))
+  res <- lm(f, data = df_final)
+  print(p)
+  print(summary(res))
+}
+```
+---
+
+Before, I used to copy-paste the code and then change the variable names.
+
+```{r, {r, include=TRUE, echo=FALSE, results='hide'}
+    training_analyses <- lm(Code_Train~condition, data=df_final)
+    summary(training_analyses)
+    
+    test_analyses <- lm(Code_Test~condition, data=df_final)
+    summary(test_analyses)
+```
+---
+
+# STEP 4: Box plot. 
+The following two graphs are a good way to visualize the important results. The first one shows the average training performance for all conditions. The second one shows the average test performance for all conditions. 
+
+I never used R to generate plots/graphs. I always used excel and SPSS. But R is more flexible.  
+```{r, include=TRUE, cache=TRUE, results='hide', message=FALSE}
+AO <- subset(df_final, condition == "AO") 
+AV <- subset(df_final, condition == "AV")
+MO <- subset(df_final, condition == "MO")
+```
+
+## Box plot for training
+```{r, include=TRUE, cache=TRUE, results='hide', message=FALSE}
+AO_mean_train <- mean(AO$Code_Train)
+AV_mean_train <- mean(AV$Code_Train)
+MO_mean_train <- mean (MO$Code_Train)
+df_mean <- data.frame(AO_mean_train, AV_mean_train,MO_mean_train)
+plot_train<- ggplot(data=df_final, mapping=aes(x=condition, y=Code_Train)) + 
+  stat_summary(fun.data=mean_sdl, geom="bar",
+              fill=c("blue","red", "orange"))+
+              ylim(0,1)+
+              labs(title="Percent Correct During Training")
+              plot_train+ theme_bw()
+```
+
+## Box plot for test. 
+```{r, include=TRUE, cache=TRUE, results='hide', message=FALSE}
+AO_mean_test <- mean(AO$Code_Test)
+AV_mean_test <- mean(AV$Code_Test)
+MO_mean_test <- mean (MO$Code_Test)
+df_mean <- data.frame(AO_mean_test, AV_mean_test,MO_mean_test)
+plot_test <- ggplot(data=df_final, mapping=aes(x=condition, y=Code_Test)) + 
+  stat_summary(fun.data=mean_sdl, geom="bar",
+               fill=c("blue","red", "orange"))+
+               ylim(0,1)+
+               labs(title="Percent Correct During Test")
+               plot_test + theme_bw()
+```
+
+---
+
+# Improved Documentation. 
+By creating different "functions," I decrease any chances for making errors when removing columns. It is more efficient to read all of the individual files first and then make changes to the main data frame.
+
+Also, I created one folder that includes the individual data files. This keeps all of the individual files safe and is way more easier to access any of them or to read all of the files at the same time. 
